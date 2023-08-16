@@ -11,8 +11,8 @@ Welcome to the React Native eBook Repository App! This app allows users to read 
 
 ## Installation
 
-1. Clone the repository: `git clone https://github.com/your-username/react-native-ebook-app.git`
-2. Navigate to the project directory: `cd react-native-ebook-app`
+1. Clone the repository: `git clone https://github.com/Sreedevi-sps/E-Book.git`
+2. Navigate to the project directory: `cd E-Book`
 3. Install dependencies: `npm install` or `yarn install`
 
 ## Usage

@@ -1,0 +1,280 @@
+diff --git a/node_modules/@epubjs-react-native/core/.DS_Store b/node_modules/@epubjs-react-native/core/.DS_Store
+new file mode 100644
+index 0000000..5172429
+Binary files /dev/null and b/node_modules/@epubjs-react-native/core/.DS_Store differ
+diff --git a/node_modules/@epubjs-react-native/core/src/View.tsx b/node_modules/@epubjs-react-native/core/src/View.tsx
+index b599c06..aa48c71 100644
+--- a/node_modules/@epubjs-react-native/core/src/View.tsx
++++ b/node_modules/@epubjs-react-native/core/src/View.tsx
+@@ -1,4 +1,4 @@
+-import React, { useContext, useEffect, useRef } from 'react';
++import React, { useContext, useEffect, useRef, useState } from 'react';
+ import {
+   TouchableWithoutFeedback,
+   I18nManager,
+@@ -44,6 +44,8 @@ export function View({
+   enableSwipe = true,
+   onSwipeLeft = () => {},
+   onSwipeRight = () => {},
++  loadHighlightedText = () => {},
++  
+   defaultTheme = initialTheme,
+   renderOpeningBookComponent = () => (
+     <OpeningBook width={width} height={height} />
+@@ -70,11 +72,17 @@ export function View({
+   } = useContext(ReaderContext);
+   const book = useRef<WebView>(null);
+ 
++  const [selectedHighlightText, setSelectedHighlightText] = useState('');
++  const [selectedHighlightCfi, setSelectedHighlightCfi] = useState('');
++
+   const onMessage = (event: WebViewMessageEvent) => {
+     const parsedEvent = JSON.parse(event.nativeEvent.data);
++    console.log("🚀 ~ file: View.tsx:80 ~ onMessage ~ parsedEvent:Text", parsedEvent.text)
+ 
+     const { type } = parsedEvent;
+ 
++    console.log('type:::::===============', type)
++
+     delete parsedEvent.type;
+ 
+     if (type === 'meta') {
+@@ -153,6 +161,23 @@ export function View({
+       return onSelected(text, cfiRange);
+     }
+ 
++    if (parsedEvent.type === 'selectedText') {
++      console.log("1------")
++      const selectedText = parsedEvent.text;
++      console.log('Selected Text:', selectedText);
++
++      // Now you can use the selected text as needed
++    }
++
++     if (type === 'onSelectedHighlight') {
++      const { cfiRange, text } = parsedEvent;
++
++      
++      // return onSelected(text, cfiRange);
++    }
++
++    
++
+     if (type === 'onMarkPressed') {
+       const { cfiRange, text } = parsedEvent;
+ 
+@@ -188,6 +213,11 @@ export function View({
+ 
+       return onLayout(layout);
+     }
++    if (type === 'error') {
++      console.info(`[error] ${JSON.stringify(parsedEvent)}`)
++    }
++
++
+ 
+     if (type === 'onNavigationLoaded') {
+       const { toc } = parsedEvent;
+@@ -216,9 +246,11 @@ export function View({
+         onPress();
+         lastTap = null;
+         clearTimeout(timer);
+-      }, 300);
++      }, 3000);
+     }
+   };
++  console.log("🚀 ~ file: View.tsx:223 ~ handleDoublePress ~ handleDoublePress:", handleDoublePress)
++
+ 
+   return (
+     <GestureHandlerRootView style={{ width, height }}>
+@@ -242,6 +274,7 @@ export function View({
+         >
+           <RNView
+             style={{
++
+               height: '100%',
+               justifyContent: 'center',
+               alignItems: 'center',
+@@ -266,14 +299,47 @@ export function View({
+                 ref={book}
+                 source={{ html: template, baseUrl: 'file:///' }}
+                 showsVerticalScrollIndicator={false}
+-                javaScriptEnabled
++                javaScriptEnabled={true}
+                 originWhitelist={['*']}
+                 scrollEnabled={false}
++
+                 mixedContentMode="compatibility"
+                 onMessage={onMessage}
+                 allowUniversalAccessFromFileURLs
+                 allowFileAccessFromFileURLs
++                // injectedJavaScriptBeforeContentLoaded={'false'}
++                // injectedJavaScript={
++                  // `${loadHighlightedText ? loadHighlightedText : ''}`
++              // }
+                 allowFileAccess
++                menuItems={[{ label: 'Highlight', key: 'highlight' }, { label: 'Copy', key: 'copy' }]}
++                onCustomMenuSelection={(webViewEvent) => {
++                console.log("🚀 ~ file: View.tsx:279 ~ webViewEvent:", webViewEvent.nativeEvent)
++                const { label, key, selectedText } = webViewEvent.nativeEvent;
++                console.log('Custom Menu Item Clicked: ', label, ' :: ', key, ' :: ', selectedHighlightText)
++
++                if (key === 'highlight') {
++                //   // onSelected(selectedHighlightText, selectedHighlightCfi);
++
++                  console.log("Book.Current=======", book.current)
++                //   console.log("What is run???", run)
++                //  book.current?.injectJavaScript(`
++                //  try {
++                //   window.highlightSelectedText();
++                //  } catch (error) {
++                //   window.ReactNativeWebView.postMessage(JSON.stringify({
++                //     type: "error",
++                //     message: error.message
++                //   }));
++                //  }
++                
++                //  `) 
++                //   console.log("🚀 ~ file: View.tsx:351 ~ y:", y)
++                  console.log("injected")
++                }
++                
++                 }}
++               
+                 onShouldStartLoadWithRequest={(request) => {
+                   if (
+                     !isRendering &&
+diff --git a/node_modules/@epubjs-react-native/core/src/template.ts b/node_modules/@epubjs-react-native/core/src/template.ts
+index 53bbef1..54ae063 100644
+--- a/node_modules/@epubjs-react-native/core/src/template.ts
++++ b/node_modules/@epubjs-react-native/core/src/template.ts
+@@ -22,6 +22,9 @@ export default `
+         align-items: center;
+       }
+     </style>
++    <script>
++
++    </script>
+   </head>
+ 
+   <body oncopy='return false' oncut='return false'>
+@@ -36,6 +39,7 @@ export default `
+       const theme = window.theme;
+       const initialLocations = window.locations;
+       const enableSelection = window.enable_selection;
++      let selection, content;
+ 
+       if (!file) {
+         alert('Failed load book');
+@@ -54,8 +58,12 @@ export default `
+         height: "100%",
+       });
+ 
++      window.custom_rendition = rendition
++
+       window.ReactNativeWebView.postMessage(JSON.stringify({ type: "onStarted" }));
+ 
++      try {
++
+       book.ready
+         .then(function () {
+           if (initialLocations) {
+@@ -186,16 +194,70 @@ export default `
+         }));
+       });
+ 
++      window.highlightSelectedText = function(cfiRange) {
++
++        function selectText(selection) {
++            book.getRange(selection).then(function (range) {
++                window.ReactNativeWebView.postMessage(JSON.stringify({
++                  type: "error",
++                  message: "range::" + range.toString()
++                }));
++                if (range) {
++                  window.ReactNativeWebView.postMessage(JSON.stringify({
++                    type: 'onMarkPressed',
++                    cfiRange: selection,
++                    text: range.toString(),
++                  }));
++          
++          
++                  rendition.annotations.add("highlight", selection, {}, (e) => {
++          
++                    window.ReactNativeWebView.postMessage(JSON.stringify({
++                      type: "error",
++                      message: "highlight clicked::" + e.target
++                    }));
++          
++                  });
++                  content.window.getSelection().removeAllRanges();
++                  }
++              });
++        }
++    
++        window.ReactNativeWebView.postMessage(JSON.stringify({
++          type: "error",
++          message: "cfi rage got::" + cfiRange
++        }));
++        if (!cfiRange) {
++            selectText(selection)
++        } else {
++            cfiRange = JSON.parse(cfiRange)
++            cfiRange.map(range => {
++                selectText(range)
++            })
++        }
++      };
++
++
+       rendition.on("selected", function (cfiRange, contents) {
+-        rendition.annotations.add("highlight", cfiRange, {}, (e) => {
+-          console.log("highlight clicked", e.target);
+-        });
+         
+-        contents.window.getSelection().removeAllRanges();
++        
++        // rendition.annotations.add("highlight", cfiRange, {}, (e) => {
++        //   console.log("highlight clicked", e.target);
++        // });
++
++        // rendition.annotations.add("mark", cfiRange, {}, (e) => {
++        //   console.log("highlight clicked", e.target);
++        // });
++
++        setTimeout(()=> {
++          contents.window.getSelection().removeAllRanges();
++        }, 3000)
++        selection = cfiRange
++        content = contents
+           book.getRange(cfiRange).then(function (range) {
+             if (range) {
+               window.ReactNativeWebView.postMessage(JSON.stringify({
+-                type: 'onSelected',
++                type: 'onSelectedHighlight',
+                 cfiRange: cfiRange,
+                 text: range.toString(),
+               }));
+@@ -203,6 +265,7 @@ export default `
+           });
+         });
+ 
++
+         rendition.on("markClicked", function (cfiRange, contents) {
+           rendition.annotations.remove(cfiRange, "highlight");
+           book.getRange(cfiRange).then(function (range) {
+@@ -222,6 +285,13 @@ export default `
+             layout: layout,
+           }));
+         });
++      } catch (error) {
++        window.ReactNativeWebView.postMessage(JSON.stringify({
++          type: "error",
++          message: error.message
++        }));
++      }
++        
+     </script>
+   </body>
+ </html>
